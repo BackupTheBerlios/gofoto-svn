@@ -1,7 +1,7 @@
 #!/usr/bin/python
 
 #
-# GOFoto 0.0.2 - a photo manager application
+# GOFoto 0.1.0 - a photo manager application
 #
 # Copyright (c) 2004-2005 Michal Nowikowski
 #
