@@ -18,7 +18,7 @@ VERSION = @VERSION@
 
 bin_PROGRAMS = gofoto
 
-gofoto_SOURCES = gofoto.py const.py.in properties.py plugins.py
+gofoto_SOURCES = gofoto.py const.py.in.in const.py.in properties.py plugins.py
 
 EXTRA_DIST =  gofoto.glade 
 
@@ -63,7 +63,7 @@ distdir: $(DISTFILES)
 	done
 
 clean:
-	-rm -f core *.pyo *.pyc *.bak *~	
+	-rm -f core *.pyo *.pyc *.bak *~ const.py
 
 realclean: clean
 

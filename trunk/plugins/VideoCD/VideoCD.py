@@ -1,5 +1,3 @@
-#!/usr/bin/python
-
 #
 # GOFoto 0.1.0 - a photo manager application, Video CD plugin
 #
