@@ -51,133 +51,15 @@ log = logging.getLogger("gofoto")
 
 #private modules
 import const
+import properties
 
 def appdir(path):
     return os.path.join(os.path.dirname(sys.argv[0]), path)
 
-class Properties:
-    def save(self, doc, xml_base):
-        xml = doc.createElement("props")
-        xml_base.appendChild(xml)
-        for key in self.__dict__.keys():
-            #print "%s = %s" % (str(key), str(self.__dict__[key]))
-            type = self.__dict__[key].__class__.__name__
-            if type == "int":
-                node_key = doc.createElement(key)
-                xml.appendChild(node_key)
-                node_key.setAttribute("type", "int")
-                node_key.setAttribute("value", str(self.__dict__[key]))
-            elif type == "str":
-                node_key = doc.createElement(key)
-                xml.appendChild(node_key)
-                node_key.setAttribute("type", "str")
-                node_key.setAttribute("value", self.__dict__[key])
-            elif type == "unicode":
-                node_key = doc.createElement(key)
-                xml.appendChild(node_key)
-                node_key.setAttribute("type", "unicode")
-                node_key.setAttribute("value", self.__dict__[key])
-            elif type == "bool":
-                node_key = doc.createElement(key)
-                xml.appendChild(node_key)
-                node_key.setAttribute("type", "bool")
-                node_key.setAttribute("value", str(self.__dict__[key]))
-            elif type == "list":
-                list = self.__dict__[key]
-                subtype = list[0].__class__.__name__
-                if subtype == "int":
-                    for el in list:
-                        node_key = doc.createElement(key)
-                        xml.appendChild(node_key)
-                        node_key.setAttribute("type", "int")
-                        node_key.setAttribute("value", str(el))
-                        pass
-                    pass
-                elif subtype == "str":
-                    for el in list:
-                        node_key = doc.createElement(key)
-                        xml.appendChild(node_key)
-                        node_key.setAttribute("type", "str")
-                        node_key.setAttribute("value", el)
-                        pass
-                    pass
-                elif subtype == "unicode":
-                    for el in list:
-                        node_key = doc.createElement(key)
-                        xml.appendChild(node_key)
-                        node_key.setAttribute("type", "unicode")
-                        node_key.setAttribute("value", el)
-                        pass
-                    pass
-                elif subtype == "bool":
-                    for el in list:
-                        node_key = doc.createElement(key)
-                        xml.appendChild(node_key)
-                        node_key.setAttribute("type", "bool")
-                        node_key.setAttribute("value", str(el))
-                        pass
-                    pass
-                else:
-                    log.error("unhandled type %s in list for field %s" % (subtype, key))
-                    pass
-                pass
-            else:
-                log.error("ERROR: unhandled type %s for field %s" % (type, key))
-                pass
-            pass
-        pass
-
-    def load(self, xml):
-        props = xml.getElementsByTagName("props")[0]
-        node = props.firstChild
-        while node != None and node.nodeType != xml.ELEMENT_NODE:
-            node = node.nextSibling
-            pass
-        while node != None:
-            type = node.getAttribute("type")
-            if type == "int":
-                value = int(node.getAttribute("value"))
-            elif type == "str":
-                value = str(node.getAttribute("value"))
-            elif type == "unicode":
-                value = unicode(node.getAttribute("value"))
-            elif type == "bool":
-                val = node.getAttribute("value")
-                if val == "False":
-                    value = False
-                else:
-                    value = True
-                    pass
-                pass
-
-            #print "%s = %s" % (str(node.nodeName), str(value))
-
-            if self.__dict__.has_key(node.nodeName):
-                if self.__dict__[node.nodeName].__class__.__name__ == "list":
-                    self.__dict__[node.nodeName].append(value)
-                else:
-                    tmp = self.__dict__[node.nodeName]
-                    self.__dict__[node.nodeName] = []
-                    self.__dict__[node.nodeName].append(tmp)
-                    self.__dict__[node.nodeName].append(value)
-                    pass
-                pass
-            else:
-                self.__dict__[node.nodeName] = value
-                pass
-
-            node = node.nextSibling
-            while node != None and node.nodeType != xml.ELEMENT_NODE:
-                node = node.nextSibling
-                pass
-            pass
-        pass
-    pass
-
 class Pict:
     def __init__(self, album, arg):
         self.album = album
-        self.props = Properties()
+        self.props = properties.Properties()
 
         if arg.__class__.__name__ == "str":
             self.pathfilename = arg
@@ -199,15 +81,15 @@ class Pict:
         pass
 
     def save(self, doc, xml):
-        pict_xml = doc.createElement("pict")
-        xml.appendChild(pict_xml)
-        self.props.save(doc, pict_xml)
+        #pict_xml = doc.createElement("pict")
+        #xml.appendChild(pict_xml)
+        self.props.save(doc, xml, "pict")
         pass
 
 class Chapter:
     def __init__(self, album, chpt_xml=None, dir=None):
         self.album = album
-        self.props = Properties()
+        self.props = properties.Properties()
         self.picts = []
 
         if chpt_xml == None:
@@ -251,7 +133,7 @@ class Chapter:
 class Album:
     def __init__(self, dir, alb_xml=None):
         self.dir = os.path.abspath(dir)
-        self.props = Properties()
+        self.props = properties.Properties()
         self.picts = []
 
         if alb_xml:
@@ -274,9 +156,13 @@ class Album:
 
         alb_xml = doc.createElement("gofoto")
         doc.appendChild(alb_xml)
-        self.props.save(doc, alb_xml)
 
-        # save chapters
+        # save props
+        #props_xml = doc.createElement("props")
+        #alb_xml.appendChild(props_xml)
+        self.props.save(doc, alb_xml, "album")
+
+        # save picts
         for pict in self.picts:
             pict.save(doc, alb_xml)
             pass
@@ -286,7 +172,7 @@ class Album:
         f.write(xmlstring)
         f.close()
         #print xmlstring
-        log.info("Album saved")
+        log.info("Album %s saved" % self.props.name)
         pass
 
 
@@ -468,7 +354,8 @@ class AlbumCollection:
         
         # album
         alb_xml = doc.getElementsByTagName("gofoto")[0]
-        album = Album(dir, alb_xml)
+        props_xml = alb_xml.getElementsByTagName("album")[0]
+        album = Album(dir, props_xml)
         self.albums.append(album)
         
         # picts
@@ -573,6 +460,7 @@ class AlbumsBrowser:
                     cell.set_property("text", obj.props.name)
                     cell.set_property('editable', False)
                 elif cell.__class__ == gtk.CellRendererPixbuf:
+                    cell.set_property("height", 50)
                     if obj.__dict__.has_key("small"):
                         cell.set_property("pixbuf", obj.small)
                     else:
@@ -581,16 +469,6 @@ class AlbumsBrowser:
                     pass
                 pass
             pass
-#        elif clmn_number == CLMN_PICT:
-#            if obj.__class__.__name__ == "Pict":
-#                if obj.__dict__.has_key("small"):
-#                    cell.set_property("pixbuf", obj.small)
-#                    pass
-#                pass
-#            else:
-#                cell.set_property("pixbuf", None)
-#                pass
-#            pass
         pass
     pass
 
