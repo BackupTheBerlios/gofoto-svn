@@ -1,3 +1,9 @@
+gofoto (0.1.0-1) unstable; urgency=low
+
+  * New upstream release
+
+ -- Michal Nowikowski <godfryd@zamek.gda.pl>  Tue,  8 Mar 2005 07:37:45 +0100
+
 gofoto (0.0.2-9) unstable; urgency=low
 
   * Update
