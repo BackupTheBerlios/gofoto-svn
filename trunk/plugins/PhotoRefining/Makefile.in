@@ -1,0 +1,66 @@
+SHELL = @SHELL@
+
+srcdir          = @srcdir@
+top_srcdir      = @top_srcdir@
+prefix		= @prefix@
+exec_prefix	= ${DESTDIR}/@exec_prefix@
+datadir		= ${DESTDIR}/@datadir@/@PACKAGE@/plugins/PhotoRefining
+INSTALL		= @INSTALL@
+srcdir		= @srcdir@
+pycomp		= @top_srcdir@/py-compile
+CFLAGS          = -fPIC -shared -O @PYTHON_INCLUDES@
+
+top_builddir = ../..
+
+bin_PROGRAMS = PhotoRefining
+
+PhotoRefining_SOURCES = PhotoRefining.py gui.glade
+
+#EXTRA_DIST =  gofoto.glade 
+
+
+PROGRAMS =  $(bin_PROGRAMS)
+
+COMPILE=${pycomp}
+
+SUBDIRS =
+
+DIST_COMMON =  Makefile.in
+
+SOURCES = $(PhotoRefining_SOURCES)
+
+DISTFILES = $(DIST_COMMON) $(SOURCES) $(HEADERS) $(TEXINFOS) $(EXTRA_DIST)
+
+all:
+	chmod +x ${pycomp}
+	${pycomp} *.py
+
+install:
+	${INSTALL} -d ${datadir}
+	${INSTALL} -m 644 *.py *.pyo gui.glade ${datadir}
+
+uninstall:
+	rm -f ${datadir}/*.py ${datadir}/*.pyo
+	-rmdir ${datadir}
+
+subdir = src
+
+distdir: $(DISTFILES)
+	for file in $(DISTFILES); do \
+	  d=$(srcdir); \
+	  if test -d $$d/$$file; then \
+	    cp -pr $$/$$file $(top_builddir)/$(distdir)/$$file; \
+	  else \
+	    test -f $(top_builddir)/$(distdir)/$$file \
+	    || ln $$d/$$file $(top_builddir)/$(distdir)/$$file 2> /dev/null \
+	    || cp -p $$d/$$file $(top_builddir)/$(distdir)/$$file || :; \
+	  fi; \
+	done
+
+clean:
+	-rm -f core *.pyo *.pyc *.bak *~	
+
+realclean: clean
+
+cvsclean: realclean
+	-rm -f *.pyc Makefile
