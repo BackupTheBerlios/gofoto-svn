@@ -35,6 +35,7 @@ SOURCES = $(gofoto_SOURCES)
 DISTFILES = $(DIST_COMMON) $(SOURCES) $(HEADERS) $(TEXINFOS) $(EXTRA_DIST)
 
 all:
+	cat const.py.in | sed -e s!%DATADIR%!${datadir}!g > const.py
 	chmod +x ${pycomp}
 	${pycomp} *.py
 
@@ -47,21 +48,17 @@ uninstall:
 	rm -f ${datadir}/*.py ${datadir}/*.pyo ${datadir}/*.glade
 	-rmdir ${datadir}
 
-distdir = $(top_builddir)/$(PACKAGE)-$(VERSION)/$(subdir)
-
 subdir = src
 
 distdir: $(DISTFILES)
-	here=`cd $(top_builddir) && pwd`; \
-	distdir=`cd $(distdir) && pwd`; \
 	for file in $(DISTFILES); do \
 	  d=$(srcdir); \
 	  if test -d $$d/$$file; then \
-	    cp -pr $$/$$file $(distdir)/$$file; \
+	    cp -pr $$/$$file $(top_builddir)/$(distdir)/$$file; \
 	  else \
-	    test -f $(distdir)/$$file \
-	    || ln $$d/$$file $(distdir)/$$file 2> /dev/null \
-	    || cp -p $$d/$$file $(distdir)/$$file || :; \
+	    test -f $(top_builddir)/$(distdir)/$$file \
+	    || ln $$d/$$file $(top_builddir)/$(distdir)/$$file 2> /dev/null \
+	    || cp -p $$d/$$file $(top_builddir)/$(distdir)/$$file || :; \
 	  fi; \
 	done
 
