@@ -18,7 +18,7 @@ VERSION = @VERSION@
 
 bin_PROGRAMS = gofoto
 
-gofoto_SOURCES = gofoto.py const.py.in.in const.py.in properties.py plugins.py
+gofoto_SOURCES = gofoto.py const.py.in.in const.py.in properties.py plugins.py thumbcache.py
 
 EXTRA_DIST =  gofoto.glade 
 

@@ -52,9 +52,11 @@ log = logging.getLogger("gofoto")
 #private modules
 import const
 import properties
+import thumbcache
 
 def appdir(path):
     return os.path.join(os.path.dirname(sys.argv[0]), path)
+
 
 class Pict:
     def __init__(self, album, arg):
@@ -78,12 +80,12 @@ class Pict:
 
     def load(self):
         if not self.small:
-            self.small = gtk.gdk.pixbuf_new_from_file_at_size(self.pathfilename, 50, 50)
+            self.small = thumbcache.get_thumb(self.pathfilename, 50)
             pass
         pass
 
     def reload(self):
-        self.small = gtk.gdk.pixbuf_new_from_file_at_size(self.pathfilename, 50, 50)
+        self.small = thumbcache.get_thumb(self.pathfilename, 50)
         self.big = None
         pass
 
@@ -367,10 +369,14 @@ class AlbumCollection:
                     self.albums_to_load.insert(i, album)
                     break
                 pass
+            if not album in self.albums_to_load:
+                self.albums_to_load.append(album)
+                pass
             pass
         else:
             self.albums_to_load.append(album)
             pass
+        #print [ a.props.name for a in self.albums_to_load ]
         self.album_cond.notify()
         self.album_cond.release()
         pass
@@ -382,6 +388,7 @@ class AlbumCollection:
             self.albums_to_load.insert(0, album)
             log.debug("speed up loading of '%s'" % album.props.name)
             pass
+        #print [ a.props.name for a in self.albums_to_load ]
         self.album_cond.notify()
         self.album_cond.release()
         self.images_loader_break.set()
@@ -477,7 +484,7 @@ class AlbumsBrowser:
         obj = model.get_value(iter, 0)
         #print "cell func clmn:%d obj:%s" % (clmn_number, obj.__class__.__name__)
         if clmn_number == CLMN_MARK:
-            if obj.__class__.__name__ in ["Album", "Chapter"]:
+            if obj.__class__ in [Album, Chapter]:
                 cell.set_property("active", obj.props.marked)
                 cell.set_property("activatable", True)
             else:
@@ -486,19 +493,21 @@ class AlbumsBrowser:
                 pass
             pass
         elif clmn_number == CLMN_NAME:
-            if obj.__class__.__name__ == "Album":
+            if obj.__class__ == Album:
                 if cell.__class__ == gtk.CellRendererText:
                     cell.set_property("text", obj.props.name)
                     cell.set_property('editable', True)
                 elif cell.__class__ == gtk.CellRendererPixbuf:
                     cell.set_property("pixbuf", None)
+                    cell.set_property("visible", False)
                     pass
-            elif obj.__class__.__name__ == "Pict":
+            elif obj.__class__ == Pict:
                 if cell.__class__ == gtk.CellRendererText:
                     cell.set_property("text", obj.props.name)
                     cell.set_property('editable', False)
                 elif cell.__class__ == gtk.CellRendererPixbuf:
                     cell.set_property("height", 50)
+                    cell.set_property("visible", True)
                     if obj.__dict__.has_key("small"):
                         cell.set_property("pixbuf", obj.small)
                     else:
@@ -556,12 +565,12 @@ class AlbumsBrowser:
         if event.button == 3:
             model, paths = self.tv_images.get_selection().get_selected_rows()
             if paths == []:
-                return gtk.TRUE
+                return True
             #if self.albumCollection.get_album_by_path(paths[0]) != None:
             #    self.ctxmnu_images.popup(None, None, None, event.button, event.time)
             #    pass
-            return gtk.TRUE
-        return gtk.FALSE
+            return True
+        return False
 
     def on_tv_images_drag_data_get(self, treeview, context, selection, info, timestamp):
         print "on_tv_images_drag_data_get"
@@ -580,7 +589,7 @@ class AlbumsBrowser:
         dest = self.tv_images.get_dest_row_at_pos(x, y)
         print "dest "+str(dest)
         path, position = dest
-        context.finish(gtk.TRUE, gtk.FALSE, timestamp)
+        context.finish(True, False, timestamp)
         paths = selection_data.data.split()
         print str(paths)
         self.albumCollection.move_picts(paths, path)
@@ -695,6 +704,111 @@ class Plugin:
             pass
         pass
 
+class PhotoCollector:
+    CLMN_VISIBLE_MARK = 0
+    CLMN_MARK = 1
+    CLMN_NAME = 2
+    def __init__(self, gofoto):
+        self.xml = gofoto.xml
+        self.gofoto = gofoto
+        
+        self.photo_collector_dialog = self.xml.get_widget("photo_collector_dialog")
+        self.ent_top_dir = self.xml.get_widget("ent_top_dir")
+        self.tv_photo_collector = self.xml.get_widget("tv_photo_collector")
+        self.btn_collect = self.xml.get_widget("btn_collect")
+        self.btn_add_collected = self.xml.get_widget("btn_add_collected")
+
+        self.xml.signal_autoconnect({
+            "on_btn_collect_toggled": self.on_btn_collect_toggled,
+            "on_btn_add_collected_clicked": self.on_btn_add_collected_clicked})
+
+
+        renderer = gtk.CellRendererToggle()
+        renderer.connect("toggled", self.__toggled_dir)
+        clmn = gtk.TreeViewColumn("", renderer, active=self.CLMN_MARK, visible=self.CLMN_VISIBLE_MARK)
+        self.tv_photo_collector.append_column(clmn)
+
+        renderer = gtk.CellRendererText()
+        clmn = gtk.TreeViewColumn("Directory / photo", renderer, text=self.CLMN_NAME)
+        self.tv_photo_collector.append_column(clmn)
+
+        pass
+
+    def __toggled_dir(self, cell, path):
+        model = self.tv_photo_collector.get_model()
+        iter = model.get_iter(path)
+        model.set_value(iter, self.CLMN_MARK, not cell.get_active())
+        pass
+
+    def run(self):
+        self.timer = -1
+        response = self.photo_collector_dialog.run()
+        self.photo_collector_dialog.hide()
+        self.btn_collect.set_active(False)
+        if self.timer != -1:
+            gobject.source_remove(self.timer)
+            pass
+        pass
+
+    def __collect_photos(self, top_dir, tree_store):
+        for root, dirs, files in os.walk(top_dir):
+            # skip traversing dirs with albums
+            if ".gofoto" in files:
+                # check if it is not missing from album list
+                if not self.gofoto.albumCollection.get_album_by_dir(root):
+                    self.gofoto.load_album(root)
+                    pass
+                # do not travers deeper
+                dirs2 = dirs[:]
+                for d in dirs2:
+                    dirs.remove(d)
+                    pass
+                continue
+            images = [ f for f in files if len(f) >= 4 and f[-4:] == ".jpg" ]
+            if images:
+                print root
+                parent_iter = tree_store.append(None, [True, False, root])
+                for i in images:
+                    tree_store.append(parent_iter, [False, False, i])
+                    pass
+                pass
+            yield True 
+            pass
+        self.btn_collect.set_active(False)
+        yield False
+
+    def on_btn_collect_toggled(self, widget):
+        #deactivated search
+        if not self.btn_collect.get_active():
+            print "stop search"
+            if self.timer != -1:
+                gobject.source_remove(self.timer)
+                pass
+            return
+            
+        #activated search
+        top_dir = self.ent_top_dir.get_text()
+        print "search %s" % top_dir
+
+        tree_store = gtk.TreeStore(gobject.TYPE_BOOLEAN, gobject.TYPE_BOOLEAN, gobject.TYPE_STRING)
+        self.tv_photo_collector.set_model(tree_store)
+        self.timer = gobject.timeout_add(50, self.__collect_photos(top_dir, tree_store).next)
+        pass
+
+    def on_btn_add_collected_clicked(self, widget):
+        model = self.tv_photo_collector.get_model()
+        
+        for row in model:
+            if not row[self.CLMN_MARK]:
+                continue
+            dir_name = row[self.CLMN_NAME]
+            album = self.gofoto.albumCollection.new_album(dir_name)
+            album.save()
+            print dir_name
+            pass
+
+        model.clear()
+        pass
     
     
 class Gofoto:
@@ -707,6 +821,7 @@ class Gofoto:
 
         self.xml = gtk.glade.XML(appdir("gofoto.glade"))
 
+        self.about_dialog = self.xml.get_widget("about_dialog")
         self.file_chooser_dialog = self.xml.get_widget("file_chooser_dialog")
         self.file_chooser_dialog.set_action(gtk.FILE_CHOOSER_ACTION_SELECT_FOLDER)
         self.file_chooser_dialog.set_title("Choose directory with photos")
@@ -720,10 +835,13 @@ class Gofoto:
             "on_save_activate": self.on_save_activate,
             "on_exit_activate": self.close_application,
             "on_new_album_activate": self.on_new_album_activate,
-            "on_notebook_switch_page": self.on_notebook_switch_page})
+            "on_notebook_switch_page": self.on_notebook_switch_page,
+            "on_collect_photos_activate": self.on_collect_photos_activate,
+            "on_about_activate": self.on_about_activate})
 
         self.albumsBrowser = AlbumsBrowser(self)
         self.pluginManager = PluginManager(self)
+        self.photoCollector = PhotoCollector(self)
 
         self.load_collection()
 
@@ -732,6 +850,7 @@ class Gofoto:
         pass
 
     def close_application(self, widget):
+        self.save_collection()
         log.info("Closing gofoto")
         self.albumCollection.close()
         gtk.main_quit()
@@ -767,24 +886,34 @@ class Gofoto:
         f.close()
         pass
 
+    def load_album(self, dir_name):
+        doc = xml.dom.minidom.parse(os.path.join(dir_name, ".gofoto"))
+        self.albumCollection.append_album(dir_name, doc)
+        pass
+
     def load_collection(self):
         rc = os.path.expanduser("~/.gofotorc")
         if not os.access(rc, os.F_OK):
             return
         f = open(rc, "r")
-        dir = f.readline().strip()
+        dir_name = f.readline().strip()
         log.debug("load_collection start %f" % time.time())
-        while dir:
-            doc = xml.dom.minidom.parse(os.path.join(dir, ".gofoto"))
-
-            self.albumCollection.append_album(dir, doc)
-
-            dir = f.readline().strip()
+        while dir_name:
+            self.load_album(dir_name)
+            dir_name = f.readline().strip()
             pass # end while dir
         log.debug("load_collection end %f" % time.time())
         f.close()
         pass
 
+    def on_collect_photos_activate(self, widget):
+        self.photoCollector.run()
+        pass
+
+    def on_about_activate(self, widget):
+        self.about_dialog.run()
+        self.about_dialog.hide()
+        pass
 
 
 if __name__ == "__main__":
