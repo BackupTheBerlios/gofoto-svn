@@ -26,6 +26,7 @@ import random
 import PIL.Image
 import wave
 import threading
+import shutil
 
 import xml.dom.minidom
 
@@ -38,7 +39,6 @@ import gobject
 
 import time
 
-
 import plugins
 
 
@@ -46,6 +46,7 @@ class WebGallery(plugins.Plugin):
     GAL_CLMN_PICT = 0
     GAL_CLMN_MARK = 1
     GAL_CLMN_NAME = 2
+    THEMES_DIR = "/usr/share/album/themes/"
     def __init__(self, gofoto, dir):
         self.gofoto = gofoto
         self.dir = dir
@@ -59,10 +60,12 @@ class WebGallery(plugins.Plugin):
 
         self.tv_gal_picts = self.xml.get_widget("tv_gal_picts")
         self.ent_gal_title = self.xml.get_widget("ent_gal_title")
+        self.cmb_template = self.xml.get_widget("cmb_template")
 
         self.xml.signal_autoconnect({
             "on_btn_create_gal_clicked": self.on_btn_create_gal_clicked,
-            "on_ent_gal_title_focus_out_event": self.on_ent_gal_title_focus_out_event})
+            "on_ent_gal_title_focus_out_event": self.on_ent_gal_title_focus_out_event,
+            "on_cmb_template_changed": self.on_cmb_template_changed})
 
         renderer = gtk.CellRendererToggle() # Mark
         renderer.connect("toggled", self.on_tv_gal_pict_toggled)
@@ -104,6 +107,21 @@ class WebGallery(plugins.Plugin):
 
     def ev_pict_changed(self, pict):
         self.__select_pict(pict)
+        pass
+
+    def ev_activate_plugin(self):
+        self.__load_templates()
+        pass
+
+    def __load_templates(self):
+        templ_model = gtk.ListStore(gobject.TYPE_STRING)
+        themes = os.listdir(self.THEMES_DIR)
+        for t in themes:
+            if not os.path.isdir(os.path.join(self.THEMES_DIR, t)):
+                continue
+            templ_model.append([t])
+            pass
+        self.cmb_template.set_model(templ_model)
         pass
 
     def __select_pict(self, pict):
@@ -249,10 +267,50 @@ class WebGallery(plugins.Plugin):
         model.set_value(iter, self.GAL_CLMN_MARK, pict.props.web_gal_included)
         print "Toggle pict %d" % pict.props.web_gal_included
         pass
+
+    def on_cmb_template_changed(self, widget):
+        pass
     
     def on_btn_create_gal_clicked(self, widget):
-        self.__load_template()
-        self.__create_htmls()
+        #self.__load_template()
+        #self.__create_htmls()
+        self.__prepare_www_dir()
+        self.__copy_picts_to_www_dir()
+        self.__generate_web_album()
+        pass
+
+    def __prepare_www_dir(self):
+        self.www_dir = os.path.join(self.album.dir, "www")
+        if not os.path.exists(self.www_dir):
+            os.mkdir(self.www_dir)
+            pass
+        pass
+
+    def __copy_picts_to_www_dir(self):
+        model = self.tv_gal_picts.get_model()
+        for row in model:
+            pict = row[self.GAL_CLMN_PICT]
+
+            if not pict.props.web_gal_included:
+                continue
+
+            print pict.props.filename
+            shutil.copy(os.path.join(self.album.dir, pict.props.filename), self.www_dir)
+            pass
+            
+        pass
+
+    def __generate_web_album(self):
+        # TBD prepare switches
+        model = self.cmb_template.get_model()
+        theme = os.path.join(self.THEMES_DIR, model[self.cmb_template.get_active()][0])
+
+        switches = "-medium 640x480 -just_medium -theme %s" % (theme)
+
+        # execute
+        cmd = "album %s %s" % (self.www_dir, switches)
+        print cmd
+        os.system(cmd)
         pass
 
     def on_ent_gal_title_focus_out_event(self, widget, event):
