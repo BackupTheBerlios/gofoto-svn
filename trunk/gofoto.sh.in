@@ -1,0 +1,8 @@
+#! /bin/sh -f 
+# @configure_input@
+
+prefix=@prefix@
+
+export GOFOTODIR=@datadir@/@PACKAGE@
+
+@PYTHON@ -O $GOFOTODIR/gofoto.py "$@"

@@ -1,0 +1,117 @@
+#!/usr/bin/make -f
+# -*- makefile -*-
+# Sample debian/rules that uses debhelper.
+# This file was originally written by Joey Hess and Craig Small.
+# As a special exception, when this file is copied by dh-make into a
+# dh-make output file, you may use that output file without restriction.
+# This special exception was added by Craig Small in version 0.37 of dh-make.
+
+# Uncomment this to turn on verbose mode.
+#export DH_VERBOSE=1
+
+upstream: get-orig-source
+get-orig-source:
+	lynx http://www.togaware.com/debian
+
+configure: configure-stamp
+configure-stamp:
+	dh_testdir
+	./configure --prefix=/usr 
+	touch configure-stamp
+
+build: configure-stamp build-stamp
+build-stamp:
+	dh_testdir
+	$(MAKE)
+	touch build-stamp
+
+clean:
+	dh_testdir
+	dh_testroot
+	rm -f build-stamp configure-stamp
+	-$(MAKE) clean
+
+	dh_clean
+
+install: build
+	dh_testdir
+	dh_testroot
+	dh_clean -k
+	dh_installdirs
+	$(MAKE) install DESTDIR=$(CURDIR)/debian/gofoto 
+        # remove the installation-generated files, will be rebuilt in postinst
+	rm -vf $(CURDIR)/debian/gofoto/usr/share/gofoto/*.py[oc]
+        # 2.0.4 fixes
+#	rm -vf $(CURDIR)/debian/gofoto/usr/share/gofoto/*.png
+#	cp -vax src/pixmaps/* $(CURDIR)/debian/gofoto/usr/share/gofoto
+
+        # From the patch by Martin Krafft, but re-disabled as per discussion
+        # with Mathias Klose, see #276537 logs
+  # fix for FHS and Python policy compliance
+        #mv $(CURDIR)/debian/gofoto/usr/share/gofoto/*.py $(CURDIR)/debian/gofoto/usr/lib/gofoto
+
+# Build architecture-independent files here. 
+binary-indep: build install
+	dh_testdir 
+	dh_testroot 
+	dh_installchangelogs 
+	dh_installdocs 
+	dh_installexamples	
+#	dh_installmenu
+#	dh_installdebconf
+#	dh_installlogrotate
+#	dh_installemacsen
+#	dh_installcatalogs
+#	dh_installpam
+#	dh_installmime
+#	dh_installinit
+#	dh_installcron
+#	dh_installinfo
+#	dh_undocumented
+	dh_installman
+	dh_link
+	dh_strip 
+	dh_compress
+	dh_fixperms 
+#	dh_python 		/usr/share/gofoto
+	dh_python
+#	dh_perl
+	dh_installdeb
+	dh_gencontrol
+#	dh_md5sums
+	dh_builddeb
+
+# Build architecture-dependent files here. 
+#binary-arch: build install
+#	dh_testdir
+#	dh_testroot
+#	dh_installdebconf
+#	dh_installdocs	
+#	dh_installexamples	
+#	dh_installmenu
+#	dh_installemacsen
+#	dh_installpam
+#	dh_installmime
+#	dh_installinit
+#	dh_installcron
+#	dh_installmanpages
+#	dh_installinfo
+#	dh_undocumented
+#	dh_installchangelogs
+#	dh_python /usr/share/gofoto
+#	dh_strip
+#	dh_link
+#	dh_compress
+#	dh_fixperms
+#	dh_suidregister
+#	dh_installdeb
+#	dh_makeshlibs
+#	dh_perl
+#	dh_shlibdeps
+#	dh_gencontrol
+#	dh_md5sums
+#	dh_builddeb
+
+
+binary: binary-indep
+.PHONY: build clean binary-indep binary install configure

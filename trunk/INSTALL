@@ -1,0 +1,7 @@
+To install, simply:
+
+	$ ./configure
+	$ make
+	$ make install
+
+Default --prefix is /usr/local.

@@ -1,0 +1,13 @@
+Source: gofoto
+Section: x11
+Priority: optional
+Maintainer: Michal Nowikowski <godfryd@zamek.gda.pl>
+Build-Depends-Indep: debhelper (>= 4.0.0), python2.3-dev (>= 2.3-1), python-dev
+Standards-Version: 3.6.1.1
+
+Package: gofoto
+Architecture: all
+Depends: ${python:Depends}
+Description: application for managing your collections of photos
+ It is capable to handle hundreds of photos in many albums.
+ It allows photos refining, generating web galleries and VideoCD.

@@ -1,0 +1,55 @@
+gofoto (0.0.2-9) unstable; urgency=low
+
+  * Update
+
+ -- Michal Nowikowski <godfryd@zamek.gda.pl>  Fri,  4 Feb 2005 07:51:56 +0100
+
+gofoto (0.0.2-8) unstable; urgency=low
+
+  * Manual updated
+
+ -- Michal Nowikowski <godfryd@zamek.gda.pl>  Thu,  3 Feb 2005 08:44:20 +0100
+
+gofoto (0.0.2-7) unstable; urgency=low
+
+  * Manual updated
+
+ -- Michal Nowikowski <godfryd@zamek.gda.pl>  Thu,  3 Feb 2005 08:42:43 +0100
+
+gofoto (0.0.2-6) unstable; urgency=low
+
+  * Updated package description
+
+ -- Michal Nowikowski <godfryd@zamek.gda.pl>  Thu,  3 Feb 2005 08:35:04 +0100
+
+gofoto (0.0.2-5) unstable; urgency=low
+
+  * Updated package description
+
+ -- Michal Nowikowski <godfryd@zamek.gda.pl>  Thu,  3 Feb 2005 08:33:02 +0100
+
+gofoto (0.0.2-4) unstable; urgency=low
+
+  * Changed architecture to all
+
+ -- Michal Nowikowski <godfryd@zamek.gda.pl>  Thu,  3 Feb 2005 08:29:50 +0100
+
+gofoto (0.0.2-3) unstable; urgency=low
+
+  * Updated debian/control, debian/rules
+  * Removed unnecessary files from debian/
+
+ -- Michal Nowikowski <godfryd@zamek.gda.pl>  Thu,  3 Feb 2005 08:25:38 +0100
+
+gofoto (0.0.2-2) unstable; urgency=low
+
+  * Package tunning
+
+ -- Michal Nowikowski <godfryd@zamek.gda.pl>  Thu,  3 Feb 2005 08:10:05 +0100
+
+gofoto (0.0.2-1) unstable; urgency=low
+
+  * Initial Release.
+
+ -- Michal Nowikowski <godfryd@zamek.gda.pl>  Wed,  2 Feb 2005 23:17:37 +0100
+
