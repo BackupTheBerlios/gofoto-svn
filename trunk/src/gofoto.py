@@ -72,7 +72,14 @@ class Pict:
             self.props.load(pict_xml)
             self.pathfilename = os.path.join(album.dir, self.props.filename)
             pass
+        self.small = None
         self.big = None
+        pass
+
+    def load(self):
+        if not self.small:
+            self.small = gtk.gdk.pixbuf_new_from_file_at_size(self.pathfilename, 50, 50)
+            pass
         pass
 
     def reload(self):
@@ -139,9 +146,12 @@ class Album:
         if alb_xml:
             # read data from xml
             self.props.load(alb_xml)
+            if not self.props.__dict__.has_key("hits"):
+                self.props.hits = 0
+                pass
+            pass
         else:
             # read data from directory
-            self.props.marked = False
             self.props.name = os.path.basename(self.dir)
             list = filter(lambda f: f.count(".jpg") > 0, os.listdir(dir))
             list.sort()
@@ -149,6 +159,8 @@ class Album:
                 self.picts.append(Pict(self, os.path.join(dir, f)))
                 pass
             pass
+            self.props.marked = False
+            self.props.hits = 0
         pass
 
     def save(self):
@@ -189,12 +201,15 @@ class AlbumCollection:
         self.albums_to_load = []
         self.images_loader_stop = threading.Event()
         self.images_loader_stop.clear()
+        self.images_loader_break = threading.Event()
+        self.images_loader_break.clear()
         self.thread = threading.Thread(target=self.__images_loader)
         self.thread.start()
         pass
 
     def close(self):
         self.images_loader_stop.set()
+        self.images_loader_break.set()
         self.album_cond.acquire()
         self.album_cond.notify()
         self.album_cond.release()
@@ -291,7 +306,7 @@ class AlbumCollection:
         else:
             return None
         album = self.model.get_value(iter, 0)
-        if album == None or album.__class__.__name__ != "Album":
+        if album == None or album.__class__ != Album:
             return None
         else:
             return album
@@ -329,23 +344,47 @@ class AlbumCollection:
             
             self.album_cond.release()
             
-            log.debug("load_images start %f" % time.time())
+            log.debug("load images '%s' start %f" % (album.props.name, time.time()))
             for pict in album.picts:
-                if self.images_loader_stop.isSet():
-                    log.info("Image loader closed")
-                    return
-                pict.reload()
+                if self.images_loader_break.isSet():
+                    log.info("Image loader break")
+                    self.images_loader_break.clear()
+                    self.albums_to_load.append(album)
+                    break
+                pict.load()
                 pass
-            log.debug("load_images end %f" % time.time())
+            log.debug("load images '%s' end %f" % (album.props.name, time.time()))
             pass
         log.info("Image loader closed")
         pass
 
     def __load_album_images(self, album):
         self.album_cond.acquire()
-        self.albums_to_load.append(album)
+        alb_num = len(self.albums_to_load)
+        if alb_num > 0:
+            for i in range(0, len(self.albums_to_load)):
+                if self.albums_to_load[i].props.hits < album.props.hits:
+                    self.albums_to_load.insert(i, album)
+                    break
+                pass
+            pass
+        else:
+            self.albums_to_load.append(album)
+            pass
         self.album_cond.notify()
         self.album_cond.release()
+        pass
+
+    def speed_up_loading(self, album):
+        self.album_cond.acquire()
+        if album in self.albums_to_load and self.albums_to_load.index(album) > 0:
+            self.albums_to_load.remove(album)
+            self.albums_to_load.insert(0, album)
+            log.debug("speed up loading of '%s'" % album.props.name)
+            pass
+        self.album_cond.notify()
+        self.album_cond.release()
+        self.images_loader_break.set()
         pass
 
     def append_album(self, dir, doc):
@@ -385,7 +424,6 @@ class AlbumsBrowser:
             "on_tv_images_drag_data_get": self.on_tv_images_drag_data_get,
             "on_tv_images_drag_data_received": self.on_tv_images_drag_data_received,
             "on_tv_images_row_expanded": self.on_tv_images_row_expanded})
-#            "on_tv_images_test_expand_row": self.on_tv_images_test_expand_row,
 
         renderer = gtk.CellRendererToggle() # Mark
         renderer.connect("toggled", self.on_tv_images_toggled)
@@ -482,10 +520,6 @@ class AlbumsBrowser:
             pass
         pass
 
-    def on_tv_images_test_expand_row(self, widget, iter, path):
-        log.debug("expand")
-        return gtk.FALSE
-
     def on_tv_images_cursor_changed(self, widget):
         model, paths = self.tv_images.get_selection().get_selected_rows()
         if paths == []:
@@ -553,9 +587,14 @@ class AlbumsBrowser:
         return 0
 
     def on_tv_images_row_expanded(self, widget, iter, path):
-        log.debug("expanded")
-                
+        album = self.albumCollection.get_album_by_path(path)
+        if not album:
+            return 
+
+        album.props.hits = album.props.hits + 1
+        self.albumCollection.speed_up_loading(album)
         pass
+
 
     def get_current_album(self):
         return self.curr_album
@@ -679,6 +718,7 @@ class Gofoto:
         self.xml.signal_autoconnect({
             "on_gofoto_destroy": self.close_application,
             "on_save_activate": self.on_save_activate,
+            "on_exit_activate": self.close_application,
             "on_new_album_activate": self.on_new_album_activate,
             "on_notebook_switch_page": self.on_notebook_switch_page})
 
@@ -695,22 +735,6 @@ class Gofoto:
         log.info("Closing gofoto")
         self.albumCollection.close()
         gtk.main_quit()
-        pass
-
-    def on_add_chapter_activate(self, widget):
-        print "on_add_chapter_activate"
-        model, paths = self.tv_images.get_selection().get_selected_rows()
-        if paths == []:
-            return
-        iter = model.get_iter(paths[0])
-        album = model.get_value(iter, 0)
-        ch = Chapter(album)
-        album.chapters.append(ch)
-        self.albumCollection.model.append(iter, [ch])
-        self.tv_images.set_cursor(paths[0], self.tv_images.get_column(CLMN_NAME),gtk.TRUE)
-        pass
-
-    def on_delete_chapter_activate(self, widget):
         pass
 
     def on_notebook_switch_page(self, widget, page, page_idx):
