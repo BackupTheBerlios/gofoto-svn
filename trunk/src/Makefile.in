@@ -6,6 +6,7 @@ prefix		= @prefix@
 exec_prefix	= ${DESTDIR}/@exec_prefix@
 bindir 		= @bindir@
 datadir		= ${DESTDIR}/@datadir@/@PACKAGE@
+datadir2	= @datadir@/@PACKAGE@
 INSTALL		= @INSTALL@
 srcdir		= @srcdir@
 pycomp		= @top_srcdir@/py-compile
@@ -35,7 +36,7 @@ SOURCES = $(gofoto_SOURCES)
 DISTFILES = $(DIST_COMMON) $(SOURCES) $(HEADERS) $(TEXINFOS) $(EXTRA_DIST)
 
 all:
-	cat const.py.in | sed -e s!%DATADIR%!${datadir}!g > const.py
+	cat const.py.in | sed -e s#%DATADIR%#${datadir2}#g > const.py
 	chmod +x ${pycomp}
 	${pycomp} *.py
 
