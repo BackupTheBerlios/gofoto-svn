@@ -42,11 +42,12 @@ import time
 
 
 import plugins
-
+import properties
 
 class VideoCD(plugins.Plugin):
-    VCD_CLMN_NAME = 0
-    VCD_CLMN_CHTR = 1
+    VCD_CLMN_PICT = 0
+    VCD_CLMN_MARK = 1
+    VCD_CLMN_NAME = 2
     def __init__(self, gofoto, dir):
         self.gofoto = gofoto
         self.dir = dir
@@ -61,7 +62,6 @@ class VideoCD(plugins.Plugin):
         self.tv_vcd_chapters = self.xml.get_widget("tv_vcd_chapters")
 
         self.xml.signal_autoconnect({
-            "on_btn_chapters_remove_clicked": self.on_btn_chapters_remove_clicked,
             "on_btn_create_mpegs_clicked": self.on_btn_create_mpegs_clicked,
             "on_btn_build_cd_clicked": self.on_btn_build_cd_clicked,
             "on_btn_choose_music_clicked": self.on_btn_choose_music_clicked,
@@ -69,14 +69,33 @@ class VideoCD(plugins.Plugin):
             "on_btn_sound_play_clicked": self.on_btn_sound_play_clicked,
             "on_btn_play_vcd_clicked": self.on_btn_play_vcd_clicked,
             "on_tv_vcd_chapters_cursor_changed": self.on_tv_vcd_chapters_cursor_changed,
-            "on_tv_vcd_chapters_drag_data_received": self.on_tv_vcd_chapters_drag_data_received})
+            "on_tv_vcd_chapters_drag_data_received": self.on_tv_vcd_chapters_drag_data_received,
+            "on_tv_vcd_chapters_button_press_event": self.on_tv_vcd_chapters_button_press_event})
 
-        renderer = gtk.CellRendererText()   # Chapter
-        clmn = gtk.TreeViewColumn("Album / Chapter", renderer, text=self.VCD_CLMN_NAME)
+        self.menu_xml = gtk.glade.XML(os.path.join(dir, "gui.glade"), "ctx_menu")
+        self.ctx_menu = self.menu_xml.get_widget("ctx_menu")
+        self.menu_xml.signal_autoconnect({
+            "on_add_chapter_activate": self.on_add_chapter_activate,
+            "on_remove_chapter_activate": self.on_remove_chapter_activate,
+            "on_rename_chapter_activate": self.on_rename_chapter_activate})
+
+        renderer = gtk.CellRendererToggle() # Mark
+        renderer.connect("toggled", self.on_tv_vcd_pict_toggled)
+        clmn = gtk.TreeViewColumn("Mark", renderer, active=self.VCD_CLMN_MARK)
         self.tv_vcd_chapters.append_column(clmn)
 
-        model = gtk.TreeStore(gobject.TYPE_STRING,
-                              gobject.TYPE_PYOBJECT)
+        renderer = gtk.CellRendererText()   # Chapter
+        renderer.connect('edited', self.cell_edited_callback)
+        renderer.set_property('editable', True)
+        clmn = gtk.TreeViewColumn("Chapter / Pict", renderer, text=self.VCD_CLMN_NAME)
+        self.tv_vcd_chapters.append_column(clmn)
+        self.tv_vcd_chapters.set_expander_column(clmn)
+
+        self.tv_vcd_clmn_types = (gobject.TYPE_PYOBJECT,
+                                  gobject.TYPE_BOOLEAN,
+                                  gobject.TYPE_STRING)
+
+        model = gtk.TreeStore(*self.tv_vcd_clmn_types)
         self.tv_vcd_chapters.set_model(model)
 
         self.tv_vcd_chapters.enable_model_drag_dest([('MY_TREE_MODEL_ROW', 0, 0),
@@ -85,12 +104,81 @@ class VideoCD(plugins.Plugin):
                                                      ('STRING', 0, 3)],
                                                     gtk.gdk.ACTION_DEFAULT)
 
+        self.album = None
+
         pass
 
-    def on_btn_chapters_remove_clicked(self, widget):
-        print "remove"
-        model, iter = self.tv_vcd_chapters.get_selection().get_selected()
-        model.remove(iter)
+    def ev_activate_plugin(self):
+        album = self.gofoto.albumsBrowser.get_current_album()
+        if album:
+            self.__load_album(album)
+            curr_pict = self.gofoto.albumsBrowser.get_selected_picts()[0]
+            if curr_pict:
+                self.__select_pict(curr_pict)
+                pass
+            pass
+        pass
+
+    def ev_album_changed(self, album):
+        self.__load_album(album)
+        pass
+
+    def ev_pict_changed(self, pict):
+        self.__select_pict(pict)
+        pass
+
+    def __select_pict(self, pict):
+        #model = self.tv_gal_picts.get_model()
+        #for row in model:
+        #    if pict == row[self.VCD_CLMN_PICT]:
+        #        self.tv_gal_picts.set_cursor(row.path)
+        #        break
+        #    pass
+        pass
+
+    def __load_album(self, album):
+        self.album = album
+        
+        model = gtk.TreeStore(*self.tv_vcd_clmn_types)
+
+        # if there is no chapters, then add one chapter
+        if not album.props.__dict__.has_key("vcd_chapters"):
+            p = properties.Properties()
+            p.name = "first"
+            album.props.vcd_chapters = [p]
+            for pict in album.picts:
+                pict.props.vcd_chapter = "first"
+                pass
+            pass
+
+        # load chapters to tv_vcd_chapters
+        parent_chpts = {}
+        for chpt in album.props.vcd_chapters:
+            parent_chpts[chpt.name] = model.append(None, [None, True, chpt.name])
+            pass            
+
+        # load picts to chapters in tv_vcd_chapters
+        for pict in album.picts:
+            if pict.props.__dict__.has_key("vcd_included"):
+                vcd_included = pict.props.vcd_included
+            else:
+                pict.props.vcd_included = True
+                vcd_included = True
+                pass
+            model.append(parent_chpts[pict.props.vcd_chapter], [pict, vcd_included, pict.props.name])
+            pass
+        self.tv_vcd_chapters.set_model(model)
+        pass
+
+    def on_tv_vcd_pict_toggled(self, widget, path):
+        model = self.tv_vcd_chapters.get_model()
+        iter = model.get_iter(path)
+        pict = model.get_value(iter, self.VCD_CLMN_PICT)
+        if not pict:
+            return
+        pict.props.vcd_included = not pict.props.vcd_included
+        model.set_value(iter, self.VCD_CLMN_MARK, pict.props.vcd_included)
+        print "Toggle pict %d" % pict.props.vcd_included
         pass
 
     def on_btn_create_mpegs_clicked(self, widget):
@@ -365,10 +453,10 @@ class VideoCD(plugins.Plugin):
         pass
 
     def on_tv_vcd_chapters_cursor_changed(self, widget):
-        print "on_tv_vcd_chapters_cursor_changed"
-        model, iter = self.tv_vcd_chapters.get_selection().get_selected()
-        chapter = model.get_value(iter, self.VCD_CLMN_CHTR)
-        self.ent_music.set_text(chapter.props.mp3_name)
+        #print "on_tv_vcd_chapters_cursor_changed"
+        #model, iter = self.tv_vcd_chapters.get_selection().get_selected()
+        #chapter = model.get_value(iter, self.VCD_CLMN_CHTR)
+        #self.ent_music.set_text(chapter.props.mp3_name)
         pass
 
     def on_tv_vcd_chapters_drag_data_received(self, widget, context, x, y, selection_data, info, timestamp):
@@ -382,5 +470,102 @@ class VideoCD(plugins.Plugin):
             self.tv_vcd_chapters.get_model().append(None, [name, chapter])
             pass
         return 0
+
+    def on_tv_vcd_chapters_button_press_event(self, widget, event):
+        if event.button == 3:
+            #model, paths = self.tv_images.get_selection().get_selected_rows()
+            #if paths == []:
+            #    return gtk.TRUE
+            #if self.albumCollection.get_album_by_path(paths[0]) != None:
+            #    self.ctxmnu_images.popup(None, None, None, event.button, event.time)
+            #    pass
+            self.ctx_menu.popup(None, None, None, event.button, event.time)
+            return gtk.TRUE
+        return gtk.FALSE
+
+    def on_add_chapter_activate(self, widget):
+        if not self.album:
+            return
+
+        name = "new"
+        p = properties.Properties()
+        p.name = name
+        self.album.props.vcd_chapters.append(p)
+        
+        model = self.tv_vcd_chapters.get_model()
+        iter = model.append(None, [None, True, name])
+        path = model.get_path(iter)
+        clmn = self.tv_vcd_chapters.get_column(self.VCD_CLMN_NAME)
+        self.tv_vcd_chapters.set_cursor(path, clmn, True)
+
+        pass
+    
+    def on_remove_chapter_activate(self, widget):
+        model, iter = self.tv_vcd_chapters.get_selection().get_selected()
+        if not iter:
+            return
+
+        print "got selected"
+
+        name = model.get_value(iter, self.VCD_CLMN_NAME)
+        iter_child = model.iter_children(iter)
+        if not iter_child:
+            model.remove(iter)
+            print "Removed chapter had no children"
+            return
+        print "removing chapter %s" % name
+        
+        root = model.get_iter_root()
+        print "root chapter %s" % model.get_value(root, self.VCD_CLMN_NAME)
+        root_name = model.get_value(root, self.VCD_CLMN_NAME)
+        iter_name = model.get_value(iter, self.VCD_CLMN_NAME)
+        if root_name == iter_name:
+            root = model.iter_next(root)
+            print "root2 chapter %s" % model.get_value(root, self.VCD_CLMN_NAME)
+            if not root:
+                print "Removing last chapter is not allowed"
+                return
+            pass
+        dest_name = model.get_value(root, self.VCD_CLMN_NAME)
+        print "pict are moved to chapter %s" % dest_name
+
+        # move all picts to destination chapter
+        print "move all picts to dest chapter"
+        iter_child = model.iter_children(iter)
+        while iter_child:
+            p, m, n = model.get(iter_child, self.VCD_CLMN_PICT, self.VCD_CLMN_MARK, self.VCD_CLMN_NAME)
+            p.props.vcd_chapter = dest_name
+            model.append(root, [p, m, n])
+            model.remove(iter_child)
+            iter_child = model.iter_children(iter)
+            pass
+        
+        model.remove(iter)
+
+        # remove from prop
+        for chpt in self.album.props.vcd_chapters:
+            if chpt.name == name:
+                self.album.props.vcd_chapters.remove(chpt)
+                break
+            pass
+
+        pass
+    
+    def on_rename_chapter_activate(self, widget):
+        print "c"
+        pass
+
+    def cell_edited_callback(self, cell, path, new_name):
+        model = self.tv_vcd_chapters.get_model()
+        iter = model.get_iter(path)
+        old_name = model.get_value(iter, self.VCD_CLMN_NAME)
+        model.set_value(iter, self.VCD_CLMN_NAME, new_name)
+        child = model.iter_children(iter)
+        while child:
+            pict = model.get_value(child, self.VCD_CLMN_PICT)
+            pict.props.vcd_chapter = new_name
+            child = model.iter_next(child)
+            pass
+        pass
 
 main_class = VideoCD
