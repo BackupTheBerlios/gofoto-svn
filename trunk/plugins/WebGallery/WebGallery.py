@@ -70,6 +70,7 @@ class WebGallery(plugins.Plugin):
         renderer.connect("toggled", self.on_tv_gal_pict_toggled)
         clmn = gtk.TreeViewColumn("Mark", renderer, active=self.GAL_CLMN_MARK)
         self.tv_gal_picts.append_column(clmn)
+
         renderer = gtk.CellRendererText()   # Pict
         clmn = gtk.TreeViewColumn("Pict", renderer, text=self.GAL_CLMN_NAME)
         self.tv_gal_picts.append_column(clmn)
