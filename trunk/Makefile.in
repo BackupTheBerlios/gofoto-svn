@@ -16,12 +16,14 @@ mandir		= ${DESTDIR}/${prefix}/share/man/man1
 etcdir          = ${DESTDIR}/@sysconfdir@
 #etcdir          = /etc
 
+pluginsdir      = ${datadir}/plugins
+
 top_builddir = .
 
 PACKAGE = @PACKAGE@
 VERSION = @VERSION@
 
-SUBDIRS = src
+SUBDIRS = src plugins/PhotoRefining plugins/WebGallery plugins/VideoCD
 
 EXTRA_DIST =    gofoto.sh.in gofoto.1
 
@@ -36,15 +38,15 @@ TAR = tar
 GZIP_ENV = --best
 
 all:
-	(cd src; ${MAKE} all)
+	for dir in $(SUBDIRS); do ${MAKE} -C $$dir all; done
 
-install:
-	(cd src; ${MAKE} install)
+install: all
+	for dir in $(SUBDIRS); do ${MAKE} -C $$dir install; done
 	-${INSTALL} -d ${bindir}
 	${INSTALL} $(PACKAGE).sh ${bindir}/$(PACKAGE)
 	-${INSTALL} -d ${mandir}
 	${INSTALL} -m 644 $(PACKAGE).1 ${mandir}/$(PACKAGE).1
-	chmod +x ${bindir}/gofoto
+	chmod +x ${bindir}/$(PACKAGE)
 
 uninstall:
 	(cd src; ${MAKE} uninstall)
@@ -79,10 +81,10 @@ distdir: $(DISTFILES)
 	for subdir in $(SUBDIRS); do \
 	  if test "$$subdir" = .; then :; else \
 	    test -d $(distdir)/$$subdir \
-	    || mkdir $(distdir)/$$subdir \
+	    || mkdir -p $(distdir)/$$subdir \
 	    || exit 1; \
 	    chmod 777 $(distdir)/$$subdir; \
-	    (cd $$subdir && $(MAKE) $(AM_MAKEFLAGS) top_distdir=../$(distdir) distdir=../$(distdir)/$$subdir distdir) \
+	    (cd $$subdir && $(MAKE) $(AM_MAKEFLAGS) distdir=$(distdir)/$$subdir distdir) \
 	      || exit 1; \
 	  fi; \
 	done
